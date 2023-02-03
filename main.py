@@ -2,71 +2,105 @@ import requests
 import random
 import os
 from dotenv import load_dotenv
+from vkbottle import VKAPIError
 
 
-def post_comics_in_vk(access_token, group_id):
-    response_last_comics = requests.get('https://xkcd.com/info.0.json')
-    decoded_last_comics = response_last_comics.json()
-    image_number = int(decoded_last_comics['num'])
-    image_to_post = random.randint(1, image_number)
+def check_vk_response(response):
+	try:
+		await response
+	except VKAPIError as e:
+		print("Возникла ошибка", e.code)
 
-    response_image_details = requests.get(f'https://xkcd.com/{image_to_post}/info.0.json')
-    response_image_details.raise_for_status()
-    decoded_response_image_details = response_image_details.json()
 
-    response_image_download = requests.get(decoded_response_image_details['img'])
-    response_image_download.raise_for_status()
-    with open(f'image_{image_to_post}.png', 'wb') as file:
-        file.write(response_image_download.content)
+def get_random_image(access_token, group_id):
+	last_comics_data_response = requests.get('https://xkcd.com/info.0.json')
+	decoded_last_comics_data_response = last_comics_data_response.json()
+	image_number = int(decoded_last_comics_data_response['num'])
+	image_number_to_post = random.randint(1, image_number)
+	return image_number_to_post
+	
 
-    parameters_server_details = {
-        'group_id': group_id
+def download_image(image_number_to_post):
+	image_details_response = requests.get(f'https://xkcd.com/{image_number_to_post}/info.0.json')
+	image_details_response.raise_for_status()
+	decoded_image_details_response = image_details_response.json()
+	image_download_response = requests.get(decoded_image_details_response['img'])
+	image_download_response.raise_for_status()
+	with open(f'image_{image_number_to_post}.png', 'wb') as file:
+		file.write(image_download_response.content)
+		return decoded_image_details_response['alt']
+
+
+def get_link_to_upload(group_id, access_token, image_number_to_post, api_version=5.131):
+	server_parameters = {
+		'access_token': access_token,
+        'group_id': group_id,
+		'v': api_version
     }
-    response_link = requests.get(f'http://api.vk.com/method/photos.getWallUploadServer?access_token={access_token}&v=5.131',
-                                 params=parameters_server_details)
-    response_link.raise_for_status()
-    decoded_response_link = response_link.json()
+	server_details_response = requests.get('http://api.vk.com/method/photos.getWallUploadServer', params=server_parameters)
+    check_vk_response(server_details_response)
+	server_details_response.raise_for_status()
+	decoded_server_details_response = server_details_response.json()
+	return decoded_server_details_response['response']['upload_url']
 
-    with open(f'image_{image_to_post}.png', 'rb') as file:
-        url = decoded_response_link['response']['upload_url']
-        files = {
+
+def upload_image(image_number_to_post, upload_link):
+	with open(f'image_{image_number_to_post}.png', 'rb') as file:
+		url = upload_link
+		files = {
             'photo': file
         }
-        response_image_upload = requests.post(url, files=files)
-        response_image_upload.raise_for_status()
-        decoded_response_image_upload = response_image_upload.json()
+	image_upload_response = requests.post(url, files=files)
+	check_vk_response(image_upload_response)
+	image_upload_response.raise_for_status()
+	decoded_image_upload_response = image_upload_response.json()
+	return decoded_image_upload_response
 
-    parameters_image = {
-        'server': decoded_response_image_upload['server'],
-        'photo': decoded_response_image_upload['photo'],
-        'hash': decoded_response_image_upload['hash'],
-        'group_id': group_id
+
+def save_image(decoded_image_upload_response, group_id, access_token, api_version=5.131):
+	image_parameters = {
+		'access_token': access_token,
+        'server': decoded_image_upload_response['server'],
+        'photo': decoded_image_upload_response['photo'],
+        'hash': decoded_image_upload_response['hash'],
+        'group_id': group_id,
+		'v': api_version
+		
     }
-    response_image_save = requests.post(
-        f'http://api.vk.com/method/photos.saveWallPhoto?access_token={access_token}&v=5.131',
-        params=parameters_image)
-    response_image_save.raise_for_status()
-    decoded_response_image_save = response_image_save.json()
+	image_save_response = requests.post(
+        'http://api.vk.com/method/photos.saveWallPhoto',
+        params=image_parameters)
+	check_vk_response(image_save_response)
+	image_save_response.raise_for_status()
+	decoded_image_save_response = image_save_response.json()
+	return decoded_image_save_response["response"][0]["owner_id"], decoded_image_save_response["response"][0]["id"]
 
-    parameters_image_post = {
+
+def post_image(owner_id, id, group_id, comment, access_token, image_number_to_post, api_version=5.131):
+    image_post_parameters = {
+		'access_token': access_token,
         'owner_id': f'-{group_id}',
         'from_group': 1,
-        'message': decoded_response_image_details['alt'],
-        'attachments': f'photo{decoded_response_image_save["response"][0]["owner_id"]}_'
-                       f'{decoded_response_image_save["response"][0]["id"]}'
+        'message': comment,
+        'attachments': f'photo{owner_id}_'
+                       f'{id}',
+		'v': api_version
     }
-
-    requests.post(f'http://api.vk.com/method/wall.post?access_token={access_token}&v=5.131',
-                  params=parameters_image_post)
-
-    os.remove(f'image_{image_to_post}.png')
+    requests.post('http://api.vk.com/method/wall.post',
+                  params=image_post_parameters)
+    os.remove(f'image_{image_number_to_post}.png')
 
 
 def main():
-    load_dotenv()
-    vk_access_token = os.environ['VK_ACCESS_TOKEN']
-    vk_group_id = os.environ['VK_GROUP_ID']
-    post_comics_in_vk(vk_access_token, vk_group_id)
+	load_dotenv()
+	access_token = os.environ['VK_ACCESS_TOKEN']
+	group_id = os.environ['VK_GROUP_ID']
+	image_number_to_post = get_random_image()
+	comment = download_image(image_number_to_post)
+	upload_link = get_link_to_upload(group_id, access_token, image_number_to_post)
+	upload_data = upload_image(image_number_to_post, upload_link)
+	owner_id, id = save_image(upload_data, group_id, access_token)
+	post_image(owner_id, id, group_id, comment, access_token, image_number_to_post)
 
 
 if __name__ == "__main__":
