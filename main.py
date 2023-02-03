@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 
-def post_comics(access_token, group_id):
+def post_comics_in_vk(access_token, group_id):
     response_last_comics = requests.get('https://xkcd.com/info.0.json')
     decoded_last_comics = response_last_comics.json()
     image_number = int(decoded_last_comics['num'])
@@ -64,9 +64,9 @@ def post_comics(access_token, group_id):
 
 def main():
     load_dotenv()
-    access_token = os.environ['ACCESS_TOKEN']
-    group_id = os.environ['GROUP_ID']
-    post_comics(access_token, group_id)
+    vk_access_token = os.environ['VK_ACCESS_TOKEN']
+    vk_group_id = os.environ['VK_GROUP_ID']
+    post_comics_in_vk(vk_access_token, vk_group_id)
 
 
 if __name__ == "__main__":
