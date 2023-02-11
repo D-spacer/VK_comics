@@ -92,13 +92,15 @@ def main():
     load_dotenv()
     access_token = os.environ['VK_ACCESS_TOKEN']
     group_id = os.environ['VK_GROUP_ID']
-    image_number_to_post = get_random_comic_number()
-    comment = download_comic(image_number_to_post)
-    upload_link = get_link_to_upload(group_id, access_token)
-    server, photo, hash_ = upload_image(image_number_to_post, upload_link)
-    owner_id, id_ = save_image(server, photo, hash_, group_id, access_token)
-    post_image(owner_id, id_, group_id, comment, access_token)
-    os.remove(f'image_{image_number_to_post}.png')
+    try:
+        image_number_to_post = get_random_comic_number()
+        comment = download_comic(image_number_to_post)
+        upload_link = get_link_to_upload(group_id, access_token)
+        server, photo, hash_ = upload_image(image_number_to_post, upload_link)
+        owner_id, id_ = save_image(server, photo, hash_, group_id, access_token)
+        post_image(owner_id, id_, group_id, comment, access_token)
+    finally:
+        os.remove(f'image_{image_number_to_post}.png')
 
 
 if __name__ == "__main__":
