@@ -12,6 +12,7 @@ def check_vk_response(response):
 
 def get_random_comic_number():
     last_comic_response = requests.get('https://xkcd.com/info.0.json')
+    last_comic_response.raise_for_status()
     decoded_last_comics_data_response = last_comic_response.json()
     image_number = int(decoded_last_comics_data_response['num'])
     image_number_to_post = random.randint(1, image_number)
@@ -38,7 +39,6 @@ def get_link_to_upload(group_id, access_token, api_version=5.131):
     server_details_response = requests.get('http://api.vk.com/method/photos.getWallUploadServer',
                                            params=server_parameters)
     check_vk_response(server_details_response)
-    server_details_response.raise_for_status()
     decoded_server_details_response = server_details_response.json()
     return decoded_server_details_response['response']['upload_url']
 
@@ -51,7 +51,6 @@ def upload_image(image_number_to_post, upload_link):
         }
         image_upload_response = requests.post(url, files=files)
     check_vk_response(image_upload_response)
-    image_upload_response.raise_for_status()
     decoded_image_upload_response = image_upload_response.json()
     return decoded_image_upload_response['server'], decoded_image_upload_response['photo'], \
            decoded_image_upload_response['hash']
@@ -71,7 +70,6 @@ def save_image(server, photo, hash_, group_id, access_token, api_version=5.131):
         'http://api.vk.com/method/photos.saveWallPhoto',
         params=image_parameters)
     check_vk_response(image_save_response)
-    image_save_response.raise_for_status()
     decoded_image_save_response = image_save_response.json()
     return decoded_image_save_response["response"][0]["owner_id"], decoded_image_save_response["response"][0]["id"]
 
@@ -86,8 +84,8 @@ def post_image(owner_id, id_, group_id, comment, access_token, api_version=5.131
                        f'{id_}',
         'v': api_version
     }
-    requests.post('http://api.vk.com/method/wall.post',
-                  params=image_post_parameters)
+    check_vk_response(requests.post('http://api.vk.com/method/wall.post',
+                  params=image_post_parameters))
 
 
 def main():
